@@ -1,6 +1,7 @@
 AI 提示词工坊 · 智能生成与优化
-
-https://img.shields.io/badge/响应式-手机/桌面-ff69b4 https://img.shields.io/badge/纯前端-本地存储-blue https://img.shields.io/badge/API直连-OpenAI兼容-green
+![响应式设计](https://img.shields.io/badge/响应式-手机/桌面-ff69b4)
+![纯前端-本地存储](https://img.shields.io/badge/纯前端-本地存储-blue)
+![API直连-OpenAI兼容](https://img.shields.io/badge/API直连-OpenAI兼容-green)
 
 🧠 无需后端，浏览器直连 OpenAI 兼容接口，自动判断任务类型，生成高质量提示词。
 
