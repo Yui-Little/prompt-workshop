@@ -1,0 +1,782 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>AI 提示词工坊 · 响应式</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+    referrerpolicy="no-referrer"
+  />
+  <style>
+    :root{
+      --bg:#fff;
+      --line:#e5e7eb;
+      --text:#111827;
+      --muted:#6b7280;
+      --black:#111111;
+    }
+    html,body{background:var(--bg);color:var(--text);}
+    body{
+      background:
+        radial-gradient(circle at 10% 8%, rgba(0,0,0,.035), transparent 30%),
+        radial-gradient(circle at 92% 0%, rgba(0,0,0,.025), transparent 38%),
+        #fff;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .card{background:rgba(255,255,255,.92);backdrop-filter:blur(8px);}
+    .soft{box-shadow:0 8px 30px rgba(17,24,39,.06);}
+    .fade-up{opacity:0;transform:translateY(14px);transition:.6s ease;}
+    .fade-up.in{opacity:1;transform:translateY(0);}
+    .btn-press{transition:.15s transform ease;}
+    .btn-press:active{transform:scale(.98);}
+    .spinner{
+      width:14px;height:14px;border-radius:999px;border:2px solid rgba(255,255,255,.35);
+      border-top-color:#fff;animation:spin .8s linear infinite;
+    }
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .modal-mask{
+      position:fixed;inset:0;background:rgba(17,24,39,.45);
+      opacity:0;pointer-events:none;transition:.25s ease;
+      backdrop-filter: blur(2px);
+      z-index:60;
+    }
+    .modal-mask.show{opacity:1;pointer-events:auto;}
+    .modal-panel{
+      position:fixed;left:0;right:0;bottom:0;z-index:70;
+      transform:translateY(100%);transition:.28s ease;
+      border-top-left-radius:18px;border-top-right-radius:18px;
+      max-height:85dvh;overflow:auto;
+    }
+    .modal-panel.show{transform:translateY(0);}
+    .safe-bottom{padding-bottom:calc(env(safe-area-inset-bottom) + 12px);}
+
+    /* 桌面响应式布局 - 核心修改 */
+    @media (min-width: 1024px) {
+      .desktop-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+      .desktop-full {
+        grid-column: span 2;
+      }
+      .desktop-tip {
+        display: none; /* 隐藏提示，因为桌面体验已经优化 */
+      }
+      .modal-panel {
+        max-width: 480px;
+        left: auto;
+        right: 2rem;
+        bottom: 2rem;
+        border-radius: 24px;
+        transform: translateY(0) scale(0.95);
+        opacity: 0;
+        transition: 0.2s ease;
+        box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+      }
+      .modal-panel.show {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+      }
+      .modal-mask {
+        background: rgba(17,24,39,.2);
+        backdrop-filter: blur(4px);
+      }
+      /* 桌面端卡片悬停效果 */
+      .card {
+        transition: all 0.2s ease;
+      }
+      .card:hover {
+        box-shadow: 0 20px 35px -8px rgba(17,24,39,.1);
+      }
+    }
+
+    /* 平板响应式调整 */
+    @media (min-width: 768px) and (max-width: 1023px) {
+      .desktop-tip {
+        display: block;
+      }
+      .mobile-shell {
+        max-width: 720px;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex items-start justify-center p-3 md:p-4 lg:p-6">
+  <div class="w-full max-w-7xl">
+    <!-- Desktop tip (只在平板显示) -->
+    <div class="desktop-tip mb-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 md:block lg:hidden">
+      当前为响应式布局 · 已适配桌面/平板/手机
+    </div>
+
+    <!-- Header -->
+    <header class="fade-up mb-3">
+      <div class="card soft border border-gray-200 rounded-2xl p-3.5">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2.5">
+            <div class="w-9 h-9 rounded-xl bg-black text-white grid place-items-center">
+              <i class="fa-solid fa-wand-magic-sparkles text-sm"></i>
+            </div>
+            <div>
+              <h1 class="text-base font-bold tracking-tight">AI 提示词工坊</h1>
+              <p class="text-[11px] text-gray-500">生成 / 优化 · 智能判断任务类型 · 响应式设计</p>
+            </div>
+          </div>
+          <button id="openSettings" class="btn-press w-9 h-9 rounded-xl border border-gray-300 grid place-items-center hover:bg-gray-50">
+            <i class="fa-solid fa-gear text-sm text-gray-700"></i>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Security note -->
+    <section class="mb-3 fade-up">
+      <div class="border border-gray-200 rounded-xl px-3 py-2.5 bg-gray-50">
+        <p class="text-[11px] text-gray-600 leading-5">
+          当前版本为前端直连 API（无后端）。
+          <span class="font-medium">API Key 仅保存在你的浏览器本地（localStorage）</span>，请勿在不可信设备使用。
+        </p>
+      </div>
+    </section>
+
+    <!-- 主内容区：桌面双栏布局 -->
+    <div class="desktop-grid">
+      <!-- Generate -->
+      <section class="fade-up">
+        <article class="card soft border border-gray-200 rounded-2xl p-3.5 h-full flex flex-col">
+          <div class="flex items-center justify-between">
+            <h2 class="text-sm font-semibold">✨ 生成提示词</h2>
+            <span class="text-[11px] text-gray-500">从想法到高质量 Prompt</span>
+          </div>
+
+          <textarea id="generateInput" rows="6"
+            class="mt-2.5 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-black/10 focus:border-black resize-y flex-1"
+            placeholder="例如：我想做一个短视频选题研究，帮我生成一个能持续产出高质量选题的提示词"></textarea>
+
+          <div class="mt-2.5 flex items-center gap-2 flex-wrap">
+            <button id="generateBtn"
+              class="btn-press inline-flex items-center gap-2 bg-black text-white text-sm rounded-xl px-4 py-2.5 disabled:opacity-60 disabled:cursor-not-allowed">
+              <span class="btn-label">生成</span>
+            </button>
+            <button id="clearGenerate" class="btn-press text-xs border border-gray-300 rounded-lg px-2.5 py-2 hover:bg-gray-50">
+              清空
+            </button>
+            <span id="generateStatus" class="text-[11px] text-gray-500"></span>
+          </div>
+
+          <div class="mt-3 flex-1">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-xs text-gray-500">结果</span>
+              <div class="flex items-center gap-1.5">
+                <button id="copyGenerate" class="btn-press text-xs border border-gray-300 rounded-lg px-2.5 py-1.5 hover:bg-gray-50">
+                  <i class="fa-regular fa-copy mr-1"></i>复制
+                </button>
+                <button id="reuseGenerateToOptimize" class="btn-press text-xs border border-gray-300 rounded-lg px-2.5 py-1.5 hover:bg-gray-50">
+                  送去优化
+                </button>
+              </div>
+            </div>
+            <pre id="generateOutput"
+              class="min-h-[140px] max-h-[320px] overflow-auto bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm leading-6 whitespace-pre-wrap"></pre>
+          </div>
+        </article>
+      </section>
+
+      <!-- Optimize -->
+      <section class="fade-up">
+        <article class="card soft border border-gray-200 rounded-2xl p-3.5 h-full flex flex-col">
+          <div class="flex items-center justify-between">
+            <h2 class="text-sm font-semibold">🔄 优化提示词</h2>
+            <span class="text-[11px] text-gray-500">增强清晰度 / 约束 / 可执行性</span>
+          </div>
+
+          <textarea id="optimizeInput" rows="6"
+            class="mt-2.5 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-black/10 focus:border-black resize-y flex-1"
+            placeholder="粘贴你已有的提示词，AI 会自动判断并优化（不限类型）"></textarea>
+
+          <div class="mt-2.5 flex items-center gap-2 flex-wrap">
+            <button id="optimizeBtn"
+              class="btn-press inline-flex items-center gap-2 bg-black text-white text-sm rounded-xl px-4 py-2.5 disabled:opacity-60 disabled:cursor-not-allowed">
+              <span class="btn-label">优化</span>
+            </button>
+            <button id="clearOptimize" class="btn-press text-xs border border-gray-300 rounded-lg px-2.5 py-2 hover:bg-gray-50">
+              清空
+            </button>
+            <span id="optimizeStatus" class="text-[11px] text-gray-500"></span>
+          </div>
+
+          <div class="mt-3 flex-1">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-xs text-gray-500">结果</span>
+              <button id="copyOptimize" class="btn-press text-xs border border-gray-300 rounded-lg px-2.5 py-1.5 hover:bg-gray-50">
+                <i class="fa-regular fa-copy mr-1"></i>复制
+              </button>
+            </div>
+            <pre id="optimizeOutput"
+              class="min-h-[140px] max-h-[320px] overflow-auto bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm leading-6 whitespace-pre-wrap"></pre>
+          </div>
+        </article>
+      </section>
+
+      <!-- Smart guide (桌面双栏合并) -->
+      <section class="fade-up desktop-full mt-3 lg:mt-0">
+        <article class="card soft border border-gray-200 rounded-2xl p-3.5">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <h3 class="text-sm font-semibold">🧠 智能策略（非固定模板）</h3>
+            <button id="fillSmartHint" class="btn-press text-xs border border-gray-300 rounded-lg px-2.5 py-1.5 hover:bg-gray-50 self-start sm:self-auto">
+              填入示例需求
+            </button>
+          </div>
+          <ul class="mt-2 text-[12px] text-gray-600 leading-5 list-disc pl-4 grid grid-cols-1 sm:grid-cols-2 gap-x-4">
+            <li>模型会先理解你的意图，再自动判断任务类型（可混合场景）。</li>
+            <li>自动补足结构：角色、目标、上下文、输入、约束、输出格式、质量标准、自检。</li>
+            <li>你只需写清楚目标与限制条件，不需要先选“写作/编程/设计”类别。</li>
+          </ul>
+        </article>
+      </section>
+
+      <!-- History -->
+      <section class="fade-up desktop-full mt-3">
+        <article class="card soft border border-gray-200 rounded-2xl p-3.5">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-semibold">📋 最近记录</h3>
+            <button id="clearHistory" class="btn-press text-xs border border-gray-300 rounded-lg px-2 py-1.5 hover:bg-gray-50">
+              清空
+            </button>
+          </div>
+          <div id="historyList" class="mt-2 space-y-2 max-h-[200px] overflow-y-auto pr-1"></div>
+        </article>
+      </section>
+    </div>
+  </div>
+
+  <!-- Settings Modal (桌面优化) -->
+  <div id="mask" class="modal-mask"></div>
+  <section id="panel" class="modal-panel bg-white border-t border-gray-200 soft safe-bottom">
+    <div class="px-4 pt-3 pb-2 sticky top-0 bg-white border-b border-gray-100 z-10">
+      <div class="mx-auto w-10 h-1.5 rounded-full bg-gray-300 mb-2 lg:hidden"></div>
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-semibold">⚙️ 接口设置</h3>
+        <button id="closeSettings" class="btn-press w-8 h-8 rounded-lg border border-gray-300 grid place-items-center">
+          <i class="fa-solid fa-xmark text-sm"></i>
+        </button>
+      </div>
+      <p class="mt-1 text-[11px] text-gray-500">
+        兼容 OpenAI 接口。Base URL 请输入到 <span class="font-medium">/v1</span>，系统自动拼接 <span class="font-medium">/chat/completions</span>。
+      </p>
+    </div>
+
+    <div class="px-4 py-3 space-y-3">
+      <label class="block">
+        <span class="text-xs text-gray-500">API Key</span>
+        <input id="cfgApiKey" type="password" placeholder="sk-..."
+          class="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-black/10 focus:border-black" />
+      </label>
+
+      <label class="block">
+        <span class="text-xs text-gray-500">Base URL（到 /v1）</span>
+        <input id="cfgBaseUrl" type="text" placeholder="https://api.openai.com/v1"
+          class="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-black/10 focus:border-black" />
+      </label>
+
+      <label class="block">
+        <span class="text-xs text-gray-500">Model</span>
+        <input id="cfgModel" type="text" placeholder="gpt-4o-mini"
+          class="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-black/10 focus:border-black" />
+      </label>
+
+      <label class="block">
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-gray-500">Temperature</span>
+          <span id="tempVal" class="text-xs text-gray-500">0.7</span>
+        </div>
+        <input id="cfgTemp" type="range" min="0" max="1" step="0.1" value="0.7" class="w-full mt-1" />
+      </label>
+
+      <div class="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-[11px] text-gray-600">
+        实际请求地址：
+        <div id="endpointPreview" class="mt-1 break-all text-gray-800 text-xs"></div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2 pt-1">
+        <button id="testConfig" class="btn-press inline-flex items-center gap-2 text-sm border border-gray-300 rounded-xl px-3 py-2.5 hover:bg-gray-50">
+          <span class="btn-label">测试连接</span>
+        </button>
+        <button id="saveConfig" class="btn-press inline-flex items-center gap-2 text-sm bg-black text-white rounded-xl px-3 py-2.5">
+          保存设置
+        </button>
+        <button id="resetConfig" class="btn-press text-sm border border-gray-300 rounded-xl px-3 py-2.5 hover:bg-gray-50">
+          默认
+        </button>
+      </div>
+
+      <p id="cfgStatus" class="text-xs text-gray-500"></p>
+    </div>
+  </section>
+
+  <script>
+    // -------------------------------
+    // Storage keys
+    // -------------------------------
+    const LS = {
+      apiKey: "pw_api_key",
+      baseUrl: "pw_base_url",
+      model: "pw_model",
+      temp: "pw_temp",
+      history: "pw_history"
+    };
+
+    // -------------------------------
+    // Defaults
+    // -------------------------------
+    const DEFAULTS = {
+      baseUrl: "https://api.openai.com/v1",
+      model: "gpt-4o-mini",
+      temp: 0.7
+    };
+
+    // -------------------------------
+    // Elements
+    // -------------------------------
+    const el = {
+      openSettings: document.getElementById("openSettings"),
+      closeSettings: document.getElementById("closeSettings"),
+      mask: document.getElementById("mask"),
+      panel: document.getElementById("panel"),
+
+      cfgApiKey: document.getElementById("cfgApiKey"),
+      cfgBaseUrl: document.getElementById("cfgBaseUrl"),
+      cfgModel: document.getElementById("cfgModel"),
+      cfgTemp: document.getElementById("cfgTemp"),
+      tempVal: document.getElementById("tempVal"),
+      endpointPreview: document.getElementById("endpointPreview"),
+      cfgStatus: document.getElementById("cfgStatus"),
+
+      testConfig: document.getElementById("testConfig"),
+      saveConfig: document.getElementById("saveConfig"),
+      resetConfig: document.getElementById("resetConfig"),
+
+      generateInput: document.getElementById("generateInput"),
+      optimizeInput: document.getElementById("optimizeInput"),
+      generateOutput: document.getElementById("generateOutput"),
+      optimizeOutput: document.getElementById("optimizeOutput"),
+      generateBtn: document.getElementById("generateBtn"),
+      optimizeBtn: document.getElementById("optimizeBtn"),
+      generateStatus: document.getElementById("generateStatus"),
+      optimizeStatus: document.getElementById("optimizeStatus"),
+
+      copyGenerate: document.getElementById("copyGenerate"),
+      copyOptimize: document.getElementById("copyOptimize"),
+      clearGenerate: document.getElementById("clearGenerate"),
+      clearOptimize: document.getElementById("clearOptimize"),
+      reuseGenerateToOptimize: document.getElementById("reuseGenerateToOptimize"),
+      fillSmartHint: document.getElementById("fillSmartHint"),
+
+      historyList: document.getElementById("historyList"),
+      clearHistory: document.getElementById("clearHistory")
+    };
+
+    // -------------------------------
+    // State
+    // -------------------------------
+    const state = {
+      apiKey: "",
+      baseUrl: DEFAULTS.baseUrl,
+      model: DEFAULTS.model,
+      temperature: DEFAULTS.temp
+    };
+
+    // -------------------------------
+    // Utilities
+    // -------------------------------
+    function sanitizeBaseUrl(raw = "") {
+      let u = (raw || "").trim();
+      u = u.replace(/\/+$/, "");
+      // 如果误填了 /chat/completions，去掉它
+      u = u.replace(/\/chat\/completions$/i, "");
+      // 如果是 /v1/chat/completions 也去掉到 /v1
+      u = u.replace(/\/v1\/chat\/completions$/i, "/v1");
+      return u;
+    }
+
+    function buildEndpoint(baseUrl) {
+      let b = sanitizeBaseUrl(baseUrl);
+      if (!b) return "";
+      if (/\/chat\/completions$/i.test(b)) return b;
+      return b + "/chat/completions";
+    }
+
+    function setStatus(node, msg, isErr = false) {
+      node.textContent = msg || "";
+      node.className = isErr ? "text-[11px] text-red-600" : "text-[11px] text-emerald-600";
+    }
+
+    function parseErrorMessage(raw) {
+      const m = String(raw || "").toLowerCase();
+      if (m.includes("401") || m.includes("unauthorized") || m.includes("invalid api key")) return "API Key 无效或已过期";
+      if (m.includes("403")) return "无权限访问该模型或接口";
+      if (m.includes("404")) return "接口地址错误，请检查 Base URL（应填写到 /v1）";
+      if (m.includes("429") || m.includes("rate")) return "请求过多或额度不足，请稍后再试";
+      if (m.includes("failed to fetch") || m.includes("network")) return "网络错误或跨域拦截，请检查接口服务是否允许浏览器调用";
+      return raw || "请求失败";
+    }
+
+    function setLoading(btn, isLoading, loadingText = "处理中") {
+      const label = btn.querySelector(".btn-label");
+      if (isLoading) {
+        btn.disabled = true;
+        label.dataset.old = label.textContent;
+        label.textContent = loadingText;
+        const sp = document.createElement("span");
+        sp.className = "spinner";
+        sp.dataset.s = "1";
+        btn.prepend(sp);
+      } else {
+        btn.disabled = false;
+        btn.querySelector("[data-s='1']")?.remove();
+        if (label.dataset.old) label.textContent = label.dataset.old;
+      }
+    }
+
+    function copyText(text, statusNode) {
+      if (!text?.trim()) return setStatus(statusNode, "没有可复制内容", true);
+      navigator.clipboard.writeText(text).then(() => {
+        setStatus(statusNode, "已复制到剪贴板");
+      }).catch(() => {
+        setStatus(statusNode, "复制失败，请手动复制", true);
+      });
+    }
+
+    function getHistory() {
+      try { return JSON.parse(localStorage.getItem(LS.history) || "[]"); }
+      catch { return []; }
+    }
+
+    function saveHistoryItem(item) {
+      const list = getHistory();
+      list.unshift(item);
+      const next = list.slice(0, 12);
+      localStorage.setItem(LS.history, JSON.stringify(next));
+      renderHistory();
+    }
+
+    function renderHistory() {
+      const list = getHistory();
+      if (!list.length) {
+        el.historyList.innerHTML = `<p class="text-xs text-gray-500">暂无记录</p>`;
+        return;
+      }
+      el.historyList.innerHTML = list.map((it, idx) => `
+        <div class="border border-gray-200 rounded-xl p-2.5">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-medium">${it.mode === "generate" ? "生成" : "优化"} · ${new Date(it.time).toLocaleString()}</span>
+            <button data-hcopy="${idx}" class="text-[11px] border border-gray-300 rounded-md px-2 py-1 hover:bg-gray-50">复制结果</button>
+          </div>
+          <p class="mt-1 text-[11px] text-gray-500 line-clamp-2">${escapeHtml(it.input)}</p>
+        </div>
+      `).join("");
+
+      [...el.historyList.querySelectorAll("[data-hcopy]")].forEach(btn => {
+        btn.onclick = () => {
+          const i = Number(btn.dataset.hcopy);
+          const item = getHistory()[i];
+          navigator.clipboard.writeText(item?.output || "");
+        };
+      });
+    }
+
+    function escapeHtml(s="") {
+      return s.replace(/[&<>"']/g, m => ({
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+      }[m]));
+    }
+
+    // -------------------------------
+    // Core API call
+    // -------------------------------
+    async function callChat({ mode, input }) {
+      const endpoint = buildEndpoint(state.baseUrl);
+      if (!state.apiKey) throw new Error("请先在设置里填写 API Key");
+      if (!state.baseUrl) throw new Error("请先在设置里填写 Base URL");
+      if (!state.model) throw new Error("请先在设置里填写模型名称");
+
+      const systemGenerate = `
+你是顶级提示词架构师。你的任务是：根据用户给出的“粗略需求”，自动判断任务性质与目标，生成一个可直接使用的高质量提示词。
+
+要求：
+1) 不要把任务硬分类，不要要求用户先选类型；你自行判断。
+2) 输出仅为“最终提示词正文”，不要解释、不要前后缀。
+3) 自动补齐高质量结构：角色、目标、上下文、输入、约束、输出格式、质量标准、自检清单。
+4) 如果用户信息不足，用可替换占位符 [待补充:xxx] 做最小必要补全。
+5) 语言清晰、可执行、无歧义，默认中文，可在提示词中允许用户指定语言。
+6) 产物要兼容多数 AI 模型（通用、稳健）。
+      `.trim();
+
+      const systemOptimize = `
+你是提示词重构专家。你的任务是：在不改变用户核心意图的前提下，优化其提示词质量。
+
+要求：
+1) 不要固定成某一领域模板；请先理解意图后自适应重写。
+2) 输出仅为“优化后的提示词正文”，不要解释、不要对比说明。
+3) 强化：具体性、上下文完整度、约束清晰度、输出格式可验证性。
+4) 保留原提示词中有价值的信息，删掉歧义和冗余。
+5) 必要时补充可替换占位符 [待补充:xxx]，避免空泛。
+6) 默认中文表达，逻辑紧凑。
+      `.trim();
+
+      const payload = {
+        model: state.model,
+        temperature: Number(state.temperature),
+        messages: [
+          { role: "system", content: mode === "generate" ? systemGenerate : systemOptimize },
+          { role: "user", content: input }
+        ]
+      };
+
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${state.apiKey}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      let data = null;
+      try { data = await res.json(); } catch { data = null; }
+
+      if (!res.ok) {
+        const errMsg = data?.error?.message || data?.message || `HTTP ${res.status}`;
+        throw new Error(errMsg);
+      }
+
+      const text = data?.choices?.[0]?.message?.content ?? "";
+      if (!text) throw new Error("接口返回为空");
+      return text.trim();
+    }
+
+    // -------------------------------
+    // Actions
+    // -------------------------------
+    async function runMode(mode) {
+      const isGen = mode === "generate";
+      const input = isGen ? el.generateInput.value.trim() : el.optimizeInput.value.trim();
+      const btn = isGen ? el.generateBtn : el.optimizeBtn;
+      const out = isGen ? el.generateOutput : el.optimizeOutput;
+      const status = isGen ? el.generateStatus : el.optimizeStatus;
+
+      if (!input) return setStatus(status, isGen ? "请先输入需求" : "请先输入提示词", true);
+
+      out.textContent = "";
+      setLoading(btn, true, isGen ? "生成中" : "优化中");
+      setStatus(status, "请求中...");
+
+      try {
+        const t0 = performance.now();
+        const text = await callChat({ mode, input });
+        const ms = Math.round(performance.now() - t0);
+        out.textContent = text;
+        setStatus(status, `完成 · ${ms}ms`);
+        saveHistoryItem({ mode, input, output: text, time: Date.now() });
+      } catch (e) {
+        setStatus(status, parseErrorMessage(e.message), true);
+      } finally {
+        setLoading(btn, false);
+      }
+    }
+
+    // -------------------------------
+    // Settings modal
+    // -------------------------------
+    function openSettings() {
+      el.mask.classList.add("show");
+      el.panel.classList.add("show");
+    }
+    function closeSettings() {
+      el.mask.classList.remove("show");
+      el.panel.classList.remove("show");
+    }
+
+    function syncPreview() {
+      el.tempVal.textContent = String(el.cfgTemp.value);
+      const endpoint = buildEndpoint(el.cfgBaseUrl.value);
+      el.endpointPreview.textContent = endpoint || "（请填写 Base URL）";
+    }
+
+    async function testConfig() {
+      const apiKey = el.cfgApiKey.value.trim();
+      const baseUrl = sanitizeBaseUrl(el.cfgBaseUrl.value);
+      const model = el.cfgModel.value.trim();
+      const temperature = Number(el.cfgTemp.value);
+      const endpoint = buildEndpoint(baseUrl);
+
+      if (!apiKey || !baseUrl || !model) {
+        return setStatus(el.cfgStatus, "请先填写完整配置", true);
+      }
+
+      setLoading(el.testConfig, true, "测试中");
+      setStatus(el.cfgStatus, "正在测试连接...");
+
+      try {
+        const t0 = performance.now();
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model,
+            temperature,
+            messages: [
+              { role: "system", content: "你是连接测试助手。请仅回复：OK" },
+              { role: "user", content: "ping" }
+            ],
+            max_tokens: 8
+          })
+        });
+
+        let data = null;
+        try { data = await res.json(); } catch { data = null; }
+
+        if (!res.ok) {
+          const em = data?.error?.message || `HTTP ${res.status}`;
+          throw new Error(em);
+        }
+
+        const used = data?.model || model;
+        const ms = Math.round(performance.now() - t0);
+        setStatus(el.cfgStatus, `测试成功 ✅ 模型: ${used} · ${ms}ms`);
+      } catch (e) {
+        setStatus(el.cfgStatus, parseErrorMessage(e.message), true);
+      } finally {
+        setLoading(el.testConfig, false);
+      }
+    }
+
+    function saveConfig() {
+      const apiKey = el.cfgApiKey.value.trim();
+      const baseUrl = sanitizeBaseUrl(el.cfgBaseUrl.value);
+      const model = el.cfgModel.value.trim();
+      const temp = Number(el.cfgTemp.value);
+
+      if (!apiKey || !baseUrl || !model) {
+        return setStatus(el.cfgStatus, "请先填写完整配置", true);
+      }
+
+      localStorage.setItem(LS.apiKey, apiKey);
+      localStorage.setItem(LS.baseUrl, baseUrl);
+      localStorage.setItem(LS.model, model);
+      localStorage.setItem(LS.temp, String(temp));
+
+      state.apiKey = apiKey;
+      state.baseUrl = baseUrl;
+      state.model = model;
+      state.temperature = temp;
+
+      setStatus(el.cfgStatus, "设置已保存");
+      setTimeout(closeSettings, 260);
+    }
+
+    function resetConfig() {
+      el.cfgApiKey.value = "";
+      el.cfgBaseUrl.value = DEFAULTS.baseUrl;
+      el.cfgModel.value = DEFAULTS.model;
+      el.cfgTemp.value = String(DEFAULTS.temp);
+      syncPreview();
+      setStatus(el.cfgStatus, "已恢复默认（未保存）");
+    }
+
+    function loadConfig() {
+      state.apiKey = localStorage.getItem(LS.apiKey) || "";
+      state.baseUrl = localStorage.getItem(LS.baseUrl) || DEFAULTS.baseUrl;
+      state.model = localStorage.getItem(LS.model) || DEFAULTS.model;
+      state.temperature = Number(localStorage.getItem(LS.temp) || DEFAULTS.temp);
+
+      el.cfgApiKey.value = state.apiKey;
+      el.cfgBaseUrl.value = state.baseUrl;
+      el.cfgModel.value = state.model;
+      el.cfgTemp.value = String(state.temperature);
+      syncPreview();
+    }
+
+    // -------------------------------
+    // Event bindings
+    // -------------------------------
+    el.openSettings.onclick = openSettings;
+    el.closeSettings.onclick = closeSettings;
+    el.mask.onclick = closeSettings;
+
+    el.cfgBaseUrl.addEventListener("input", syncPreview);
+    el.cfgTemp.addEventListener("input", syncPreview);
+
+    el.testConfig.onclick = testConfig;
+    el.saveConfig.onclick = saveConfig;
+    el.resetConfig.onclick = resetConfig;
+
+    el.generateBtn.onclick = () => runMode("generate");
+    el.optimizeBtn.onclick = () => runMode("optimize");
+
+    el.copyGenerate.onclick = () => copyText(el.generateOutput.textContent, el.generateStatus);
+    el.copyOptimize.onclick = () => copyText(el.optimizeOutput.textContent, el.optimizeStatus);
+
+    el.clearGenerate.onclick = () => { el.generateInput.value = ""; el.generateOutput.textContent = ""; setStatus(el.generateStatus, ""); };
+    el.clearOptimize.onclick = () => { el.optimizeInput.value = ""; el.optimizeOutput.textContent = ""; setStatus(el.optimizeStatus, ""); };
+
+    el.reuseGenerateToOptimize.onclick = () => {
+      if (!el.generateOutput.textContent.trim()) return setStatus(el.generateStatus, "先生成内容再使用此功能", true);
+      el.optimizeInput.value = el.generateOutput.textContent.trim();
+      window.scrollTo({ top: document.body.scrollHeight / 2, behavior: "smooth" });
+      setStatus(el.generateStatus, "已填入优化区");
+    };
+
+    el.fillSmartHint.onclick = () => {
+      el.generateInput.value = `我想做一个“每周输出行业洞察”的工作流，请帮我写一个通用提示词：
+- 我会提供：行业主题、目标读者、可用数据来源
+- 我希望输出：观点摘要、关键证据、可执行建议、风险提示
+- 结果风格：专业但易读，适合公众号和内部汇报
+- 约束：要有结构化格式，可重复使用`;
+      setStatus(el.generateStatus, "已填入示例需求");
+    };
+
+    el.clearHistory.onclick = () => {
+      localStorage.removeItem(LS.history);
+      renderHistory();
+    };
+
+    // Enter to submit (with modifier keys)
+    [el.generateInput, el.optimizeInput].forEach((ta, idx) => {
+      ta.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+          e.preventDefault();
+          idx === 0 ? runMode("generate") : runMode("optimize");
+        }
+      });
+    });
+
+    // 点击模态面板内部不关闭
+    el.panel.addEventListener("click", (e) => e.stopPropagation());
+
+    // -------------------------------
+    // Init animation + boot
+    // -------------------------------
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(ent => ent.isIntersecting && ent.target.classList.add("in"));
+    }, { threshold: .1 });
+    document.querySelectorAll(".fade-up").forEach(n => io.observe(n));
+
+    loadConfig();
+    renderHistory();
+
+    // 首次无配置自动弹设置
+    if (!state.apiKey) {
+      setTimeout(openSettings, 250);
+    }
+  </script>
+</body>
+</html>
